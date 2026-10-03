@@ -68,6 +68,7 @@ h3{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
 .notice{padding:11px 14px;border-radius:8px;background:var(--wait-bg);color:var(--wait);font-weight:600}
 .lede{color:var(--ink-2);max-width:62ch}
 .help{color:var(--ink-3);font-size:14px}
+.help.warn{color:var(--wait);font-weight:600}
 
 /* ---------- send form ---------- */
 .cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
@@ -129,6 +130,8 @@ a.link{color:var(--blue);font-weight:600;text-underline-offset:3px;overflow-wrap
 .tmbar{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;padding:14px 16px;border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
 .tmbar .help{flex:1 1 100%}
 .tmbar .copyrow{flex:1 1 320px}
+.alerts{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding-top:12px;border-top:1px solid var(--line)}
+.alerts .copyrow{flex:1 1 320px}
 .sums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .sum{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
 .sum .big{font-size:30px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
@@ -319,6 +322,14 @@ dialog::backdrop{background:var(--scrim)}
           <button type="button" class="btn small" data-copy="tm-crew">Copy crew link</button>
         </div>
         <p class="help">Send the crew link to anyone who needs to turn in a receipt. That link can only send. This page is the only place that shows what came in.</p>
+        <form class="alerts" id="alert-form" novalidate>
+          <label class="lbl" for="tm-alerts">Email alerts</label>
+          <div class="copyrow">
+            <input id="tm-alerts" class="inp" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="700" placeholder="you@example.com, teammate@example.com">
+            <button type="submit" class="btn small" id="tm-alerts-save">Save</button>
+          </div>
+          <p class="help" id="tm-alerts-help">Everyone listed gets an email, with the receipt attached, each time one is sent in. Separate addresses with commas. Leave it empty for no emails.</p>
+        </form>
       </div>
       <div class="sums" id="sums"></div>
       <div class="tools">
@@ -370,7 +381,7 @@ if (BOOT.tm) LS.set('rd.tm', BOOT.tm);
 var S = {
   conn:'pending', isTM:false,
   k:BOOT.k || LS.get('rd.k') || '', tm:BOOT.tm || LS.get('rd.tm') || '',
-  receipts:[], thumbs:{}, links:null, loaded:false,
+  receipts:[], thumbs:{}, links:null, alerts:'', mailReady:true, loaded:false,
   tab:'send', touched:false,
   filter:{status:'open', person:'all'},
   files:[], busy:false, token:'', fileCache:{}
@@ -511,6 +522,12 @@ function renderShell(){
     $('tm-sheet').hidden = !sheet; if (sheet) $('tm-sheet').href = sheet;
     $('tm-folder').hidden = !folder; if (folder) $('tm-folder').href = folder;
     if ($('tm-crew').value !== (L.crew || '')) $('tm-crew').value = L.crew || '';
+    var al = $('tm-alerts');
+    // Show what is saved, but never overwrite an address someone is in the middle of typing.
+    if (document.activeElement !== al && al.dataset.saved !== S.alerts){ al.value = S.alerts; al.dataset.saved = S.alerts; }
+    var ah = $('tm-alerts-help');
+    ah.className = S.mailReady ? 'help' : 'help warn';
+    ah.textContent = S.mailReady ? ALERT_HELP : 'Google has not given this app permission to send email yet, so no alerts are going out. ' + ALERT_HELP;
   }
 }
 
@@ -649,6 +666,29 @@ function showDone(d, count, id){
 function sendAnother(){
   $('rc-done').hidden = true; $('rc-form').hidden = false;
   $('f-amount').focus();
+}
+
+/* ---------- email alerts (tour desk only) ---------- */
+var ALERT_HELP = 'Everyone listed gets an email, with the receipt attached, each time one is sent in. Separate addresses with commas. Leave it empty for no emails.';
+function saveAlerts(ev){
+  ev.preventDefault();
+  var inp = $('tm-alerts'), btn = $('tm-alerts-save');
+  btn.disabled = true;
+  call('api_notify', auth(), inp.value).then(function(res){
+    if (!res || !res.ok){
+      var why = res && res.reason;
+      toast(why === 'email' ? 'That does not look like an email address: ' + str(res.bad, 100)
+        : why === 'toomany' ? 'Up to 6 addresses can get the alerts.'
+        : why === 'forbidden' ? 'This needs the tour desk link.' : 'That did not save. Try again.');
+      return;
+    }
+    S.alerts = str(res.alerts, 700); inp.value = S.alerts; inp.dataset.saved = S.alerts;
+    S.mailReady = res.mailReady !== false; renderAll();
+    toast(!res.count ? 'Email alerts are off.'
+      : res.mailed ? 'Saved. A confirmation email is on its way to ' + plural(res.count, 'address', 'addresses') + '.'
+      : !S.mailReady ? 'Saved. Emails start once Google has permission to send them.'
+      : 'Saved, but the confirmation email could not be sent. Check the addresses.');
+  }).catch(fail).then(function(){ btn.disabled = false; });
 }
 
 /* ---------- receipts (tour desk only) ---------- */
@@ -866,6 +906,8 @@ function refresh(){
     if (typeof st.party === 'string' && st.party) $('party').textContent = st.party.slice(0, 80);
     S.receipts = S.isTM && Array.isArray(st.receipts) ? st.receipts : [];
     S.thumbs = (S.isTM && st.thumbs) || {}; S.links = (S.isTM && st.links) || null;
+    S.alerts = S.isTM && typeof st.alerts === 'string' ? st.alerts : '';
+    S.mailReady = !(S.isTM && st.mailReady === false);
     if (first && S.isTM && !S.touched) setTab('track');
     renderAll();
   }).catch(function(){
@@ -891,6 +933,7 @@ function start(){
     var files = Array.prototype.filter.call(e.clipboardData.files || [], function(f){ return /^image\//.test(f.type) || isPdf(f); });
     if (files.length){ e.preventDefault(); addFiles(files); }
   });
+  $('alert-form').addEventListener('submit', saveAlerts);
   $('flt-person').addEventListener('change', function(e){ S.filter.person = e.target.value; renderTrack(); });
   var dlg = $('detail');
   dlg.addEventListener('click', function(e){ if (e.target === dlg) dlg.close(); });
