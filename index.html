@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_blank">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Receipt Desk</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: the same family as the Flight Desk. A deep navy band across the top carries the name;
+   the send form sits on it like a booking widget. The tour desk side is a stack of receipt cards
+   grouped by person, with what is still owed up top. One light theme by design. */
+:root{
+  --navy:#0B2A4A; --navy-2:#143E69; --navy-ink:#DCE7F3;
+  --red:#C5122E; --red-dark:#A30F26;
+  --bg:#F0F3F7; --surface:#FFFFFF; --surface-2:#F5F7FA;
+  --ink:#13233A; --ink-2:#44546A; --ink-3:#66758A;
+  --line:#DCE2EA; --line-strong:#B7C2CF;
+  --blue:#1B5FBF; --blue-soft:#E6EEFA;
+  --wait:#8A5300; --wait-bg:#FCEFD2;
+  --review:#1B5FBF; --review-bg:#E6EEFA;
+  --alt:#0B6477; --alt-bg:#DBF1F5;
+  --ok:#17693C; --ok-bg:#DFF3E6;
+  --bad:#A8231B; --bad-bg:#FBE3E0;
+  --scrim:rgba(8,24,44,.6);
+  --shadow:0 1px 2px rgba(11,42,74,.08), 0 6px 20px rgba(11,42,74,.10);
+  --sans:"Source Sans 3","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45}
+img{max-width:100%}
+[hidden]{display:none!important}
+h1,h2,h3,p,ol,dl{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- top band ---------- */
+.top{background:linear-gradient(180deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding-top:env(safe-area-inset-top, 0px);padding-bottom:128px}
+.top-in{max-width:1080px;margin-inline:auto;padding-inline:16px;padding-block:16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.mark{flex:none;width:38px;height:38px;border-radius:50%;background:var(--red);color:#fff;display:grid;place-items:center}
+h1{font-size:24px;font-weight:700;line-height:1.1;letter-spacing:.01em}
+.eyebrow{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.top .eyebrow{color:var(--navy-ink);opacity:.85;margin-top:2px}
+.conn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--navy-ink);white-space:nowrap}
+.conn::before{content:"";width:8px;height:8px;border-radius:50%;background:#8FA3BA}
+.conn.live::before{background:#5FD38D}
+.conn.off::before{background:#F2BC57}
+
+.wrap{max-width:1080px;margin-inline:auto;margin-top:-118px;padding-inline:16px;padding-block:0 72px;display:flex;flex-direction:column;gap:18px}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.side{display:flex;flex-direction:column;gap:12px;min-width:0}
+.phead{display:flex;flex-direction:column;gap:6px}
+
+.tabs{display:flex;gap:4px;overflow-x:auto}
+.tab{flex:none;font-size:16px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;padding:11px 16px 9px;border:0;border-bottom:3px solid transparent;background:none;color:var(--navy-ink);cursor:pointer}
+.tab:hover{color:#fff}
+.tab[aria-current="page"]{color:#fff;border-bottom-color:var(--red)}
+.tab:focus-visible{outline-color:#fff}
+
+h2{font-size:26px;font-weight:700;line-height:1.15;color:var(--navy);text-wrap:balance}
+h3{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.notice{padding:11px 14px;border-radius:8px;background:var(--wait-bg);color:var(--wait);font-weight:600}
+.lede{color:var(--ink-2);max-width:62ch}
+.help{color:var(--ink-3);font-size:14px}
+
+/* ---------- send form ---------- */
+.cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
+.panel{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);padding:22px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.gate{max-width:660px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px 12px}
+.grid2.even{grid-template-columns:repeat(2,minmax(0,1fr))}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field.wide{grid-column:1/-1}
+.field > label,.lbl{font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.inp{width:100%;min-width:0;font-size:16px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink)}
+.inp:focus{border-color:var(--blue)}
+.inp::placeholder{color:var(--ink-3);opacity:.75}
+.inp.sm{font-size:14px;padding:7px 10px;width:auto;max-width:100%}
+.inp.code{letter-spacing:.12em;font-weight:600}
+textarea.inp{min-height:84px;resize:vertical}
+.money{position:relative}
+.money::before{content:"$";position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-weight:600}
+.money .inp{padding-left:26px;font-variant-numeric:tabular-nums}
+.money .inp.amt{font-size:22px;font-weight:700;color:var(--navy);padding-block:6px}
+.drop{border:1.5px dashed var(--line-strong);border-radius:8px;padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.drop.over{border-color:var(--blue);background:var(--blue-soft)}
+.shots{display:flex;flex-wrap:wrap;gap:10px}
+.shot{position:relative}
+.shot img,.tile{display:block;width:66px;height:86px;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+.tile{display:grid;place-items:center;font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--red)}
+.shot button{position:absolute;top:-7px;right:-7px;width:24px;height:24px;border-radius:50%;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-weight:700;font-size:13px;line-height:1;cursor:pointer}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--navy);background:var(--surface);color:var(--navy);border-radius:999px;padding:9px 18px;font-weight:700;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--blue-soft)}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff;font-size:16px;letter-spacing:.06em;text-transform:uppercase;padding:13px 28px}
+.btn.primary:hover{background:var(--red-dark);border-color:var(--red-dark)}
+.btn.small{padding:6px 14px;font-size:14px}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.armed{background:var(--bad-bg)}
+.btn[disabled]{opacity:.55;cursor:default}
+.err{color:var(--bad);font-weight:600}
+a.link{color:var(--blue);font-weight:600;text-underline-offset:3px;overflow-wrap:anywhere}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.copyrow{display:flex;gap:8px;min-width:0}
+.copyrow .inp{flex:1;min-width:0;width:auto;font-size:13px;padding:7px 10px}
+
+.howto{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);padding:18px 18px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.steps{list-style:none;padding:0;display:flex;flex-direction:column;gap:12px;counter-reset:step}
+.steps li{counter-increment:step;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;color:var(--ink-2)}
+.steps li::before{content:counter(step);width:28px;height:28px;border-radius:50%;background:var(--blue-soft);color:var(--navy);font-weight:700;font-size:14px;display:grid;place-items:center}
+.steps b{color:var(--ink);font-weight:700}
+
+.done .check{width:44px;height:44px;border-radius:50%;background:var(--ok-bg);color:var(--ok);display:grid;place-items:center}
+
+/* ---------- status ---------- */
+.pill{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:12px;font-weight:700;line-height:1;letter-spacing:.06em;text-transform:uppercase;padding:5px 10px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.wait{background:var(--wait-bg);color:var(--wait)}
+.pill.review{background:var(--review-bg);color:var(--review)}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.no{background:var(--bad-bg);color:var(--bad)}
+
+/* ---------- tracking ---------- */
+.tmbar{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:center;padding:14px 16px;border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.tmbar .help{flex:1 1 100%}
+.tmbar .copyrow{flex:1 1 320px}
+.sums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.sum{background:var(--surface);border-radius:10px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum .big{font-size:30px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sum.owed .big{color:var(--red)}
+.sum.owed.zero .big{color:var(--navy)}
+.tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.tally{display:flex;flex-wrap:wrap;gap:6px}
+.tbtn{display:inline-flex;align-items:baseline;gap:7px;border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:6px 14px;cursor:pointer;font-weight:600;color:var(--ink-2)}
+.tbtn b{font-weight:700;color:var(--navy);font-variant-numeric:tabular-nums}
+.tbtn[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.tbtn[aria-pressed="true"] b{color:#fff}
+.filters{display:flex;flex-wrap:wrap;gap:8px}
+.filters .inp{max-width:240px}
+#track-body{display:flex;flex-direction:column;gap:26px}
+.group{display:flex;flex-direction:column;gap:12px}
+.ghead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-bottom:8px;border-bottom:2px solid var(--navy)}
+.gname{font-size:22px;font-weight:700;color:var(--navy);overflow-wrap:anywhere}
+.gmeta{color:var(--ink-3);font-size:15px}
+.gsum{margin-left:auto;font-size:15px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.ghead .btn{min-width:11.5em}
+.empty{padding:26px 18px;border:1px dashed var(--line-strong);border-radius:10px;color:var(--ink-2);background:var(--surface)}
+
+.pass{display:grid;grid-template-columns:190px minmax(0,1fr) 190px;background:var(--surface);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.pass > div{padding:16px 18px;display:flex;flex-direction:column;gap:9px;min-width:0}
+.pass .main{border-left:1px solid var(--line)}
+.pass .fare{background:var(--surface-2);border-left:1px solid var(--line);gap:12px}
+.meta{font-size:13px;color:var(--ink-3)}
+.desc{font-size:17px;font-weight:600;overflow-wrap:anywhere}
+.tmnote{font-size:15px;padding:8px 10px;border-radius:6px;background:var(--alt-bg);color:var(--ink);overflow-wrap:anywhere}
+.tmnote .lbl{color:var(--alt)}
+.thumb{padding:0;border:0;background:none;cursor:pointer;border-radius:6px}
+.thumb img,.thumb .tile{display:block;width:44px;height:58px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.thumb .tile{display:grid;font-size:11px}
+.fblock{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fval{font-size:28px;font-weight:700;line-height:1.1;color:var(--navy);font-variant-numeric:tabular-nums}
+.fsub{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere}
+
+/* ---------- detail dialog ---------- */
+dialog{border:0;border-radius:12px;padding:0;background:var(--surface);color:var(--ink);width:min(760px,calc(100% - 24px));max-height:calc(100% - 32px);box-shadow:0 20px 60px rgba(8,24,44,.35)}
+dialog::backdrop{background:var(--scrim)}
+.dwrap{padding:22px;display:flex;flex-direction:column;gap:16px}
+.dhead{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;font-size:15px}
+.dl dt{font-size:12px;font-weight:700;line-height:1.8;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.dl dd{margin:0;overflow-wrap:anywhere}
+.full{display:flex;flex-direction:column;gap:12px}
+.fslot{display:flex;flex-direction:column;gap:8px}
+.full img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px}
+.full iframe{display:block;width:100%;height:min(70vh,560px);border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.desk{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+
+.toast{position:fixed;left:50%;bottom:0;transform:translateX(-50%);margin-bottom:calc(18px + env(safe-area-inset-bottom, 0px));max-width:calc(100% - 32px);width:max-content;padding:12px 18px;border-radius:8px;background:var(--navy);color:#fff;font-weight:600;z-index:50;box-shadow:var(--shadow)}
+
+@media (max-width:860px){
+  .cols{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .pass{grid-template-columns:minmax(0,1fr)}
+  .pass .main{border-left:0;border-top:1px solid var(--line)}
+  .pass .fare{border-left:0;border-top:1px solid var(--line)}
+  .pass .stub{flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px 12px}
+  .gsum{margin-left:0}
+  .sums{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sum:first-child{grid-column:1/-1}
+  .sum .big{font-size:24px}
+}
+@media (max-width:460px){
+  h1{font-size:21px}
+  .mark{width:34px;height:34px}
+  .grid2,.grid2.even{grid-template-columns:minmax(0,1fr)}
+  .panel{padding:16px}
+  .tab{font-size:15px;padding-inline:12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" fill-rule="evenodd" d="M5 2h14v20l-2.33-1.6L14.33 22 12 20.4 9.67 22l-2.34-1.6L5 22V2zm3.5 5v2h7V7h-7zm0 4v2h7v-2h-7zm0 4v2h4.5v-2H8.5z"/></svg></span>
+      <div>
+        <h1>Receipt Desk</h1>
+        <p class="eyebrow" id="party">Reimbursements</p>
+      </div>
+    </div>
+    <p class="conn" id="conn" role="status">Connecting</p>
+  </div>
+</header>
+<div class="wrap">
+
+  <!-- ======== GATE: crew code, errors ======== -->
+  <section id="gate" class="panel gate" hidden>
+    <div id="gate-lock" class="stack" hidden>
+      <div class="phead">
+        <h2>Crew code</h2>
+        <p class="lede">Enter the code Q sent with the link. You only need to do this once on this device.</p>
+      </div>
+      <form id="lock-form" class="row" novalidate>
+        <label class="sr" for="lock-code">Crew code</label>
+        <input id="lock-code" class="inp code" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="40" style="max-width:13em">
+        <button type="submit" class="btn primary" id="lock-btn">Unlock</button>
+      </form>
+      <p class="err" id="lock-err" hidden role="alert"></p>
+    </div>
+    <div id="gate-msg" class="phead" hidden>
+      <h2 id="gate-msg-title"></h2>
+      <p class="lede" id="gate-msg-text"></p>
+    </div>
+  </section>
+
+  <div id="app" class="stack" style="gap:18px">
+    <nav class="tabs" id="tabs" aria-label="Sections" hidden>
+      <button type="button" class="tab" id="tab-track" data-tab="track">Receipts</button>
+      <button type="button" class="tab" id="tab-send" data-tab="send">Send a receipt</button>
+    </nav>
+
+    <p class="notice" id="notice" hidden></p>
+
+    <!-- ======== SEND (everyone) ======== -->
+    <section id="view-send" class="cols">
+      <div class="stack">
+        <form id="rc-form" class="panel" novalidate>
+          <div class="phead">
+            <h2>Send a receipt</h2>
+            <p class="lede">Paid for something that needs to be reimbursed? Send the receipt here.</p>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="f-name">Your name</label>
+              <input id="f-name" class="inp" maxlength="80" autocomplete="name" placeholder="First and last name">
+            </div>
+            <div class="field">
+              <label for="f-amount">Amount</label>
+              <div class="money"><input id="f-amount" class="inp amt" inputmode="decimal" maxlength="10" placeholder="0.00" autocomplete="off"></div>
+            </div>
+            <div class="field wide">
+              <label for="f-desc">What was it for</label>
+              <textarea id="f-desc" class="inp" maxlength="400" placeholder="Ride from the airport to the venue, guitar strings, crew lunch on a travel day"></textarea>
+            </div>
+            <div class="field wide">
+              <div class="drop" id="drop">
+                <div>
+                  <span class="lbl">Receipt</span>
+                  <p class="help">A photo or a PDF. Add up to 4 files if the receipt runs more than one page.</p>
+                </div>
+                <div class="shots" id="file-list"></div>
+                <label class="btn" for="f-files" id="f-files-btn">Add receipt</label>
+                <input id="f-files" class="sr" type="file" accept="image/*,application/pdf" multiple>
+              </div>
+            </div>
+          </div>
+          <p class="err" id="f-error" hidden role="alert"></p>
+          <div><button type="submit" class="btn primary" id="f-submit">Send receipt</button></div>
+        </form>
+
+        <div id="rc-done" class="panel done" hidden tabindex="-1">
+          <span class="check" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><path fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+          <div class="phead">
+            <h2>Receipt sent</h2>
+            <p class="lede">Q has it. There is nothing else you need to do.</p>
+          </div>
+          <dl class="dl" id="done-dl"></dl>
+          <div><button type="button" class="btn" id="done-again">Send another receipt</button></div>
+        </div>
+      </div>
+
+      <aside class="howto">
+        <h3>How it works</h3>
+        <ol class="steps">
+          <li><span><b>One receipt per send.</b> Enter the total you paid, tip and tax included.</span></li>
+          <li><span><b>Show the whole receipt.</b> Lay it flat and make sure the total and the date are readable.</span></li>
+          <li><span><b>Q takes it from there.</b> Each receipt is reviewed and reimbursed. Hold on to the original until you are paid back.</span></li>
+        </ol>
+      </aside>
+    </section>
+
+    <!-- ======== RECEIPTS (tour desk only) ======== -->
+    <section id="view-track" hidden class="side" style="gap:18px">
+      <div class="tmbar" id="tmbar">
+        <span class="lbl">Tour desk</span>
+        <a class="btn small" id="tm-sheet" href="#">Open the Sheet</a>
+        <a class="btn small" id="tm-folder" href="#">Receipt folder</a>
+        <div class="copyrow">
+          <label class="sr" for="tm-crew">Crew link</label>
+          <input id="tm-crew" class="inp" readonly>
+          <button type="button" class="btn small" data-copy="tm-crew">Copy crew link</button>
+        </div>
+        <p class="help">Send the crew link to anyone who needs to turn in a receipt. That link can only send. This page is the only place that shows what came in.</p>
+      </div>
+      <div class="sums" id="sums"></div>
+      <div class="tools">
+        <div class="tally" id="tally"></div>
+        <div class="filters">
+          <label class="sr" for="flt-person">Filter by person</label>
+          <select id="flt-person" class="inp sm"></select>
+        </div>
+      </div>
+      <div id="track-body"><p class="empty">Loading receipts</p></div>
+    </section>
+  </div>
+</div>
+
+<dialog id="detail" aria-label="Receipt details"><div class="dwrap" id="detail-body"></div></dialog>
+<p class="toast" id="toast" hidden role="status"></p>
+
+<script>
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+var LS = {
+  get: function(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set: function(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+var STATUS = {
+  submitted:{label:'Submitted', cls:'wait'},
+  approved:{label:'Approved', cls:'review'},
+  paid:{label:'Reimbursed', cls:'ok'},
+  declined:{label:'Declined', cls:'no'}
+};
+var ORDER = ['submitted','approved','paid','declined'];
+var MAX_IMG = 900000, MAX_THUMB = 9000, MAX_FILES = 4, MAX_PDF_BYTES = 5 * 1024 * 1024, MAX_TOTAL = 15000000;
+var JPG = 'data:image/jpeg;base64,', PDF = 'data:application/pdf;base64,';
+
+/* The Google Apps Script web app that stores everything. The page talks to it with plain web
+   requests that carry no Google sign-in, so it works no matter which Google accounts the browser holds. */
+var API = 'https://script.google.com/macros/s/AKfycbzexzMvu8zitYaIJgafXzHBKl7QFYt37WcEwNIXzXQOlr4C3EtFx4eAzrc_YIV26mkgQg/exec';
+var params = new URLSearchParams(location.search);
+function okv(v, re){ return re.test(v || '') ? v : ''; }
+var BOOT = {
+  k: okv(params.get('k'), /^[A-Za-z0-9_-]{1,80}$/),
+  tm: okv(params.get('tm'), /^[A-Za-z0-9_-]{1,80}$/)
+};
+var GAS = /^https:/.test(API);
+if (BOOT.k) LS.set('rd.k', BOOT.k);
+if (BOOT.tm) LS.set('rd.tm', BOOT.tm);
+
+var S = {
+  conn:'pending', isTM:false,
+  k:BOOT.k || LS.get('rd.k') || '', tm:BOOT.tm || LS.get('rd.tm') || '',
+  receipts:[], thumbs:{}, links:null, loaded:false,
+  tab:'send', touched:false,
+  filter:{status:'open', person:'all'},
+  files:[], busy:false, token:'', fileCache:{}
+};
+function auth(){ return {k:S.k, tm:S.tm}; }
+function call(name){
+  var args = Array.prototype.slice.call(arguments, 1);
+  if (!GAS) return Promise.reject(new Error('offline'));
+  return fetch(API, {method:'POST', credentials:'omit', redirect:'follow', body:JSON.stringify({fn:name.replace(/^api_/, ''), args:args})})
+    .then(function(r){ if (!r.ok) throw new Error('http ' + r.status); return r.json(); });
+}
+
+/* ---------- tiny helpers ---------- */
+function h(tag, attrs){
+  var el = document.createElement(tag), k, v, i;
+  if (attrs) for (k in attrs){
+    v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k === 'hidden') el.hidden = true;
+    else if (k.slice(0,2) === 'on') el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (i = 2; i < arguments.length; i++) add(el, arguments[i]);
+  return el;
+}
+function add(el, kid){
+  if (kid == null || kid === false) return;
+  if (Array.isArray(kid)) { kid.forEach(function(k){ add(el, k); }); return; }
+  el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+}
+function str(v, max){ return typeof v === 'string' ? v.slice(0, max || 400) : ''; }
+function numOrNull(v){
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  var n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+  return isFinite(n) ? n : null;
+}
+function amountOrNull(v){
+  var n = numOrNull(v);
+  if (n == null) return null;
+  n = Math.round(n * 100) / 100;
+  return n > 0 && n < 100000 ? n : null;
+}
+function money(n){
+  if (typeof n !== 'number' || !isFinite(n)) return '';
+  return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function safeUrl(u){
+  try { var x = new URL(String(u).trim()); return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : null; }
+  catch(e){ return null; }
+}
+function fmtDate(iso){
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+  if (!m) return iso || '';
+  return new Date(+m[1], +m[2]-1, +m[3]).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+}
+function fmtWhen(s){
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(s || '');
+  if (!m) return s || '';
+  var d = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
+  return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ', ' + d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+}
+function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
+/* Two spellings of one person ("pat lee", "Pat  Lee") count as the same person. */
+function pkey(name){ return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+function newToken(){
+  var a = new Uint8Array(12), out = '', i;
+  try { crypto.getRandomValues(a); } catch(e){ for (i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); }
+  for (i = 0; i < a.length; i++) out += ('0' + a[i].toString(16)).slice(-2);
+  return out;
+}
+var toastTimer;
+function toast(msg){
+  var t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function(){ t.hidden = true; }, 4200);
+}
+function fail(){ toast('That did not go through. Check your connection and try again.'); }
+function confirmBtn(label, sure, fn, cls){
+  var b = h('button', {type:'button', class:'btn small ' + (cls == null ? 'danger' : cls), text:label}), armed = false, t;
+  b.addEventListener('click', function(){
+    if (!armed){
+      armed = true; b.textContent = sure; b.classList.add('armed');
+      t = setTimeout(function(){ armed = false; b.textContent = label; b.classList.remove('armed'); }, 4000);
+      return;
+    }
+    clearTimeout(t); b.disabled = true;
+    Promise.resolve().then(fn).catch(function(){ fail(); b.disabled = false; armed = false; b.textContent = label; b.classList.remove('armed'); });
+  });
+  return b;
+}
+function setOptions(sel, opts, value){
+  sel.replaceChildren.apply(sel, opts.map(function(o){ return h('option', {value:o[0], text:o[1]}); }));
+  sel.value = opts.some(function(o){ return o[0] === value; }) ? value : opts[0][0];
+  return sel.value;
+}
+function copyFrom(id){
+  var inp = $(id), done = function(){ toast('Copied.'); };
+  inp.focus(); inp.select();
+  var fallback = function(){ try { if (document.execCommand('copy')) done(); else toast('Select the link and copy it.'); } catch(e){ toast('Select the link and copy it.'); } };
+  try { navigator.clipboard.writeText(inp.value).then(done, fallback); } catch(e){ fallback(); }
+}
+function statusOf(r){ return STATUS[r.status] ? r.status : 'submitted'; }
+function isOpen(r){ var st = statusOf(r); return st === 'submitted' || st === 'approved'; }
+function pill(st){ return h('span', {class:'pill ' + STATUS[st].cls, text:STATUS[st].label}); }
+function byNewest(a, b){ return String(b.createdAt).localeCompare(String(a.createdAt)); }
+
+/* ---------- shell ---------- */
+function setTab(tab, fromUser){
+  S.tab = tab === 'track' && S.isTM ? 'track' : 'send';
+  if (fromUser) S.touched = true;
+  ['send','track'].forEach(function(t){
+    $('view-' + t).hidden = t !== S.tab;
+    var b = $('tab-' + t);
+    if (t === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+function renderShell(){
+  var gate = S.conn === 'locked' ? 'lock' : S.conn === 'down' ? 'msg' : '';
+  $('gate').hidden = !gate;
+  $('gate-lock').hidden = gate !== 'lock';
+  $('gate-msg').hidden = gate !== 'msg';
+  $('app').hidden = !!gate;
+  if (gate === 'msg'){
+    $('gate-msg-title').textContent = 'Could not reach the Receipt Desk';
+    $('gate-msg-text').textContent = 'Check your connection and reload the page.';
+  }
+  var c = $('conn');
+  c.className = 'conn' + (S.conn === 'live' ? ' live' : S.conn === 'pending' ? '' : ' off');
+  c.textContent = S.conn === 'live' ? (S.isTM ? 'Tour desk' : 'Ready') : S.conn === 'offline' ? 'Preview' : S.conn === 'locked' ? 'Locked' : S.conn === 'down' ? 'Offline' : 'Connecting';
+  var n = $('notice'), msg = S.conn === 'offline' ? 'This is a preview. Nothing here is saved.' : '';
+  n.hidden = !msg; n.textContent = msg;
+  $('tabs').hidden = !S.isTM;
+  if (S.tab === 'track' && !S.isTM) setTab('send');
+  var L = S.links;
+  if (S.isTM && L){
+    var sheet = safeUrl(L.sheet), folder = safeUrl(L.folder);
+    $('tm-sheet').hidden = !sheet; if (sheet) $('tm-sheet').href = sheet;
+    $('tm-folder').hidden = !folder; if (folder) $('tm-folder').href = folder;
+    if ($('tm-crew').value !== (L.crew || '')) $('tm-crew').value = L.crew || '';
+  }
+}
+
+/* ---------- send form ---------- */
+function touch(){ S.touched = true; S.token = ''; $('f-error').hidden = true; }
+function renderFiles(){
+  var box = $('file-list');
+  box.replaceChildren.apply(box, S.files.map(function(f, i){
+    var label = (f.kind === 'pdf' ? 'PDF ' : 'Photo ') + (i + 1);
+    return h('div', {class:'shot', title:f.name || label},
+      f.kind === 'pdf' ? h('span', {class:'tile', role:'img', 'aria-label':label + (f.name ? ', ' + f.name : ''), text:'PDF'}) : h('img', {src:f.thumb, alt:label}),
+      h('button', {type:'button', 'aria-label':'Remove ' + label, text:'×', onclick:function(){ S.files.splice(i,1); touch(); renderFiles(); }}));
+  }));
+  $('f-files-btn').textContent = S.files.length ? 'Add another file' : 'Add receipt';
+}
+function loadImg(file){
+  return new Promise(function(res, rej){
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){ res(img); };
+    img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+function compress(file){
+  return loadImg(file).then(function(img){
+    var W = img.naturalWidth, H = img.naturalHeight;
+    function draw(side, q){
+      var sc = Math.min(1, side / Math.max(W, H)), c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(W*sc)); c.height = Math.max(1, Math.round(H*sc));
+      var x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', q);
+    }
+    var side = 2200, q = 0.82, out, i;
+    for (i = 0; i < 12; i++){
+      out = draw(side, q);
+      if (out.length <= MAX_IMG) break;
+      if (q > 0.55) q -= 0.09; else side = Math.round(side * 0.82);
+    }
+    var th = draw(120, 0.5);
+    if (th.length > MAX_THUMB) th = draw(84, 0.45);
+    URL.revokeObjectURL(img.src);
+    if (out.length > MAX_IMG || out.indexOf(JPG) !== 0) throw new Error('big');
+    return {kind:'jpg', dataUrl:out, thumb:th, name:file.name || ''};
+  });
+}
+function readPdf(file){
+  return new Promise(function(res, rej){
+    if (file.size > MAX_PDF_BYTES){ var e = new Error('big'); e.big = true; rej(e); return; }
+    var fr = new FileReader();
+    fr.onerror = function(){ rej(new Error('read')); };
+    fr.onload = function(){
+      var s = String(fr.result || ''), at = s.indexOf(',');
+      var body = at < 0 ? '' : s.slice(at + 1);
+      if (body.slice(0, 7) !== 'JVBERi0'){ rej(new Error('notpdf')); return; } // every PDF starts with %PDF-
+      res({kind:'pdf', dataUrl:PDF + body, thumb:'', name:file.name || ''});
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function isPdf(f){ return f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''); }
+function addFiles(files){
+  var list = Array.prototype.filter.call(files || [], function(f){ return f && (/^image\//.test(f.type) || isPdf(f)); });
+  if (!list.length){ if (files && files.length) toast('Use a photo or a PDF.'); return; }
+  list.reduce(function(p, f){
+    return p.then(function(){
+      if (S.files.length >= MAX_FILES){ toast('Up to ' + MAX_FILES + ' files per receipt.'); return; }
+      var job = isPdf(f) ? readPdf(f) : compress(f);
+      return job.then(function(x){ S.files.push(x); touch(); renderFiles(); }).catch(function(e){
+        toast(isPdf(f) ? (e && e.big ? 'That PDF is over 5 MB. Send a photo of the receipt instead.' : 'That file could not be read as a PDF.')
+          : 'That image could not be read. Use a JPG or PNG photo, or a PDF.');
+      });
+    });
+  }, Promise.resolve());
+}
+function readForm(){
+  return {
+    name:str($('f-name').value.trim().replace(/\s+/g, ' '), 80),
+    amountRaw:$('f-amount').value.trim(),
+    amount:amountOrNull($('f-amount').value),
+    description:str($('f-desc').value.trim(), 400)
+  };
+}
+function validate(d){
+  if (!d.name) return ['f-name', 'Enter your name.'];
+  if (!d.amountRaw) return ['f-amount', 'Enter the amount on the receipt.'];
+  if (d.amount == null) return ['f-amount', 'That amount does not look right. Enter it like 42.50.'];
+  if (!d.description) return ['f-desc', 'Say what it was for.'];
+  if (!S.files.length) return ['f-files-btn', 'Add a photo or PDF of the receipt.'];
+  var total = 0; S.files.forEach(function(f){ total += f.dataUrl.length; });
+  if (total > MAX_TOTAL) return ['f-files-btn', 'Those files are too large to send together. Remove one, or send photos instead of PDFs.'];
+  return null;
+}
+var WHY = {
+  name:'Enter your name.', amount:'That amount does not look right. Enter it like 42.50.', description:'Say what it was for.',
+  file:'The receipt file could not be read. Remove it and add it again.', toobig:'Those files are too large to send together.'
+};
+function submitForm(ev){
+  ev.preventDefault();
+  if (S.busy) return;
+  var errEl = $('f-error'), d = readForm(), bad = null, err = '';
+  if (S.conn === 'offline') err = 'This is a preview, so nothing was sent.';
+  else if (S.conn !== 'live') err = 'Still connecting. Try again in a moment.';
+  else { bad = validate(d); if (bad) err = bad[1]; }
+  errEl.hidden = !err; errEl.textContent = err;
+  if (err){ if (bad && bad[0] !== 'f-files-btn') $(bad[0]).focus(); return; }
+  var btn = $('f-submit'); S.busy = true; btn.disabled = true; btn.textContent = 'Sending';
+  if (!S.token) S.token = newToken();
+  var files = S.files.slice();
+  LS.set('rd.name', d.name);
+  call('api_submit', auth(), {name:d.name, amount:d.amount, description:d.description, token:S.token},
+    files.map(function(f){ return f.dataUrl; }), files.map(function(f){ return f.thumb; })).then(function(res){
+    if (!res || !res.ok){
+      var why = res && res.reason;
+      if (why === 'locked'){ S.conn = 'locked'; renderAll(); return; }
+      errEl.hidden = false; errEl.textContent = WHY[why] || 'That did not go through. Try again.';
+      return;
+    }
+    showDone(d, files.length, str(res.id, 40));
+    S.files = []; S.token = ''; renderFiles();
+    $('f-amount').value = ''; $('f-desc').value = '';
+    if (S.isTM) refresh();
+  }).catch(function(){
+    errEl.hidden = false; errEl.textContent = 'That did not go through. Check your connection and press Send receipt again.';
+  }).then(function(){ S.busy = false; btn.disabled = false; btn.textContent = 'Send receipt'; });
+}
+function showDone(d, count, id){
+  var dl = $('done-dl');
+  dl.replaceChildren();
+  [['Name', d.name], ['Amount', money(d.amount)], ['For', d.description], ['Receipt', plural(count, 'file', 'files')], ['Reference', id]].forEach(function(p){
+    dl.append(h('dt', {text:p[0]}), h('dd', {text:p[1]}));
+  });
+  $('rc-form').hidden = true; $('rc-done').hidden = false;
+  $('toast').hidden = true;
+  $('rc-done').focus(); $('rc-done').scrollIntoView({block:'nearest'});
+}
+function sendAnother(){
+  $('rc-done').hidden = true; $('rc-form').hidden = false;
+  $('f-amount').focus();
+}
+
+/* ---------- receipts (tour desk only) ---------- */
+function mark(ids, status, okMsg){
+  return call('api_mark', auth(), ids, status).then(function(res){
+    if (!res || !res.ok) throw new Error('refused');
+    toast(okMsg);
+    return refresh();
+  });
+}
+function tiles(r){
+  var th = S.thumbs[r.id] || [];
+  return (r.files || []).slice(0, MAX_FILES).map(function(kind, i){
+    var t = th[i], label = 'Open ' + (kind === 'pdf' ? 'PDF ' : 'photo ') + (i + 1);
+    var inner = kind !== 'pdf' && typeof t === 'string' && t.indexOf(JPG) === 0 ? h('img', {src:t, alt:''}) : h('span', {class:'tile', text: kind === 'pdf' ? 'PDF' : 'IMG'});
+    return h('button', {type:'button', class:'thumb', 'aria-label':label, onclick:function(){ openDetail(r.id); }}, inner);
+  });
+}
+function card(r){
+  var st = statusOf(r), amt = numOrNull(r.amount);
+  var acts = [];
+  if (st === 'submitted') acts.push(h('button', {type:'button', class:'btn small', text:'Approve', onclick:function(e){
+    e.target.disabled = true; mark([r.id], 'approved', 'Approved.').catch(function(){ fail(); e.target.disabled = false; });
+  }}));
+  if (isOpen(r)) acts.push(h('button', {type:'button', class:'btn small', text:'Mark reimbursed', onclick:function(e){
+    e.target.disabled = true; mark([r.id], 'paid', 'Marked reimbursed.').catch(function(){ fail(); e.target.disabled = false; });
+  }}));
+  acts.push(h('button', {type:'button', class:'btn small', text:'Review', onclick:function(){ openDetail(r.id); }}));
+  var stub = h('div', {class:'stub'}, pill(st),
+    h('span', {class:'meta', text:'Sent ' + fmtWhen(r.createdAt)}),
+    st === 'paid' && r.paidOn ? h('span', {class:'meta', text:'Reimbursed ' + fmtDate(r.paidOn)}) : null);
+  var main = h('div', {class:'main'},
+    h('p', {class:'desc', text:str(r.description, 400) || 'No description'}),
+    r.note ? h('p', {class:'tmnote'}, h('span', {class:'lbl', text:'Your note'}), ' ', str(r.note, 400)) : null,
+    h('div', {class:'row'}, tiles(r), acts));
+  var fare = h('div', {class:'fare'}, h('div', {class:'fblock'}, h('span', {class:'lbl', text:'Amount'}), h('span', {class:'fval', text:money(amt) || 'Not given'})));
+  return h('article', {class:'pass', 'data-id':r.id}, stub, main, fare);
+}
+function renderTrack(){
+  if (!S.isTM) return;
+  var body = $('track-body');
+  var names = {};
+  S.receipts.slice().sort(byNewest).forEach(function(r){ var k = pkey(r.name); if (!names[k]) names[k] = str(r.name, 80) || 'No name'; });
+  var keys = Object.keys(names).sort(function(a, b){ return a.localeCompare(b); });
+  S.filter.person = setOptions($('flt-person'), [['all','Everyone']].concat(keys.map(function(k){ return [k, names[k]]; })), S.filter.person);
+
+  var scoped = S.receipts.filter(function(r){ return S.filter.person === 'all' || pkey(r.name) === S.filter.person; });
+  var counts = {open:0, paid:0, declined:0, all:scoped.length}, owed = 0, paid = 0;
+  scoped.forEach(function(r){
+    var st = statusOf(r), a = numOrNull(r.amount) || 0;
+    if (st === 'paid'){ counts.paid++; paid += a; }
+    else if (st === 'declined') counts.declined++;
+    else { counts.open++; owed += a; }
+  });
+  var tally = $('tally');
+  tally.replaceChildren.apply(tally, [['open','To pay'], ['paid','Reimbursed'], ['declined','Declined'], ['all','All']].map(function(p){
+    return h('button', {type:'button', class:'tbtn', 'aria-pressed':String(S.filter.status === p[0]), onclick:function(){ S.filter.status = p[0]; renderTrack(); }},
+      p[1], h('b', {text:String(counts[p[0]])}));
+  }));
+  var who = S.filter.person === 'all' ? '' : ' to ' + names[S.filter.person];
+  $('sums').replaceChildren(
+    h('div', {class:'sum owed' + (owed ? '' : ' zero')}, h('span', {class:'lbl', text:'Still owed' + who}), h('span', {class:'big', text:money(owed)}), h('span', {class:'help', text:plural(counts.open, 'receipt', 'receipts') + ' to pay'})),
+    h('div', {class:'sum'}, h('span', {class:'lbl', text:'Reimbursed'}), h('span', {class:'big', text:money(paid)}), h('span', {class:'help', text:plural(counts.paid, 'receipt', 'receipts')})),
+    h('div', {class:'sum'}, h('span', {class:'lbl', text:'Receipts in'}), h('span', {class:'big', text:String(counts.all)}), h('span', {class:'help', text: S.filter.person === 'all' ? 'from ' + plural(keys.length, 'person', 'people') : 'from this person'})));
+
+  body.replaceChildren();
+  if (!S.loaded){ body.append(h('p', {class:'empty', text:'Loading receipts'})); return; }
+  var shown = scoped.filter(function(r){
+    var st = statusOf(r);
+    return S.filter.status === 'all' || (S.filter.status === 'open' ? isOpen(r) : st === S.filter.status);
+  });
+  if (!shown.length){
+    var msg = !S.receipts.length ? 'No receipts yet. Send out the crew link and each receipt lands here with its photo, amount and description.'
+      : S.filter.status === 'open' ? 'Nothing waiting to be paid' + (who ? who : '') + '.'
+      : 'Nothing matches these filters.';
+    body.append(h('p', {class:'empty', text:msg}));
+    return;
+  }
+  var groups = {}, order = [];
+  shown.slice().sort(byNewest).forEach(function(r){
+    var k = pkey(r.name);
+    if (!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(r);
+  });
+  order.forEach(function(k){
+    var rs = groups[k], open = rs.filter(isOpen), sum = 0, openSum = 0;
+    rs.forEach(function(r){ sum += numOrNull(r.amount) || 0; });
+    open.forEach(function(r){ openSum += numOrNull(r.amount) || 0; });
+    var head = h('div', {class:'ghead'},
+      h('span', {class:'gname', text:names[k]}),
+      h('span', {class:'gmeta', text:plural(rs.length, 'receipt', 'receipts')}),
+      h('span', {class:'gsum', text: open.length ? 'Owed ' + money(openSum) : 'Total ' + money(sum)}),
+      open.length > 1 ? confirmBtn('Mark all ' + open.length + ' reimbursed', 'Confirm', function(){
+        return mark(open.map(function(r){ return r.id; }), 'paid', plural(open.length, 'receipt', 'receipts') + ' marked reimbursed.');
+      }, '') : null);
+    var sec = h('section', {class:'group'}, head);
+    rs.forEach(function(r){ sec.append(card(r)); });
+    body.append(sec);
+  });
+}
+
+/* ---------- detail / review ---------- */
+function b64Blob(b64, type){
+  var bin = atob(b64), n = bin.length, a = new Uint8Array(n), i;
+  for (i = 0; i < n; i++) a[i] = bin.charCodeAt(i);
+  return new Blob([a], {type:type});
+}
+function getFile(id, i){
+  var key = id + '#' + i;
+  if (S.fileCache[key]) return Promise.resolve(S.fileCache[key]);
+  return call('api_file', auth(), id, i).then(function(res){
+    if (!res || !res.ok || typeof res.data !== 'string') throw new Error('gone');
+    var f = {kind: res.kind === 'pdf' ? 'pdf' : 'jpg', link:safeUrl(res.link)};
+    // The type is fixed here, never taken from the file, so a receipt can only ever be shown as a picture or a PDF.
+    if (f.kind === 'pdf'){
+      if (res.data.indexOf(PDF) !== 0) throw new Error('type');
+      f.url = URL.createObjectURL(b64Blob(res.data.slice(PDF.length), 'application/pdf'));
+    } else {
+      if (res.data.indexOf(JPG) !== 0) throw new Error('type');
+      f.url = res.data;
+    }
+    S.fileCache[key] = f;
+    return f;
+  });
+}
+function loadFiles(r, box){
+  var kinds = (r.files || []).slice(0, MAX_FILES);
+  if (!kinds.length){ box.replaceChildren(h('p', {class:'help', text:'No receipt file is attached to this one.'})); return; }
+  box.replaceChildren(h('h3', {text: kinds.length === 1 ? 'Receipt' : 'Receipt, ' + kinds.length + ' files'}));
+  kinds.forEach(function(kind, i){
+    var what = (kind === 'pdf' ? 'PDF ' : 'Photo ') + (i + 1);
+    var slot = h('div', {class:'fslot'}, h('p', {class:'help', text:'Loading ' + what.toLowerCase()}));
+    box.append(slot);
+    getFile(r.id, i).then(function(f){
+      var links = h('div', {class:'row'},
+        f.kind === 'pdf' ? h('a', {class:'btn small', href:f.url, target:'_blank', rel:'noopener', text:'Open ' + what + ' in a new tab'}) : null,
+        f.link ? h('a', {class:'link', href:f.link, target:'_blank', rel:'noopener noreferrer', text:what + ' in Drive'}) : null);
+      slot.replaceChildren(
+        f.kind === 'pdf' ? h('iframe', {src:f.url, title:what + ' from ' + (str(r.name, 80) || 'the sender')}) : h('img', {src:f.url, alt:what + ' from ' + (str(r.name, 80) || 'the sender')}),
+        links);
+    }).catch(function(){
+      slot.replaceChildren(h('p', {class:'help', text:what + ' could not be loaded. Look for it in the receipt folder.'}));
+    });
+  });
+}
+function openDetail(id){
+  var r = S.receipts.find(function(x){ return x.id === id; });
+  var dlg = $('detail'), body = $('detail-body');
+  if (!r || !S.isTM){ if (dlg.open) dlg.close(); return; }
+  dlg.dataset.id = id;
+  var st = statusOf(r);
+  var dl = h('dl', {class:'dl'});
+  [['Amount', money(numOrNull(r.amount)) || 'Not given'], ['For', r.description || 'No description'], ['Sent', fmtWhen(r.createdAt)],
+    st === 'paid' && r.paidOn ? ['Reimbursed', fmtDate(r.paidOn)] : null, ['Reference', r.id]].filter(Boolean)
+    .forEach(function(p){ dl.append(h('dt', {text:p[0]}), h('dd', {text:str(String(p[1]), 400)})); });
+  var filesBox = h('div', {class:'full'});
+  body.replaceChildren(
+    h('div', {class:'dhead'},
+      h('div', null, h('p', {class:'eyebrow', text:'Receipt'}), h('h2', {text:str(r.name, 80) || 'No name'})),
+      h('button', {type:'button', class:'btn small', text:'Close', onclick:function(){ dlg.close(); }})),
+    h('div', {class:'row'}, pill(st)),
+    dl, filesBox, deskSection(r, st));
+  loadFiles(r, filesBox);
+  if (!dlg.open){ try { dlg.showModal(); } catch(e){ dlg.setAttribute('open', ''); } }
+}
+function deskSection(r, st){
+  var f = function(id, label, node, wide){ return h('div', {class:'field' + (wide ? ' wide' : '')}, h('label', {for:id, text:label}), node); };
+  var status = h('select', {id:'d-status', class:'inp'});
+  setOptions(status, ORDER.map(function(k){ return [k, STATUS[k].label]; }), st);
+  var amount = h('input', {id:'d-amount', class:'inp', inputmode:'decimal', maxlength:'10', value: r.amount == null ? '' : Number(r.amount).toFixed(2)});
+  var name = h('input', {id:'d-name', class:'inp', maxlength:'80', value:r.name || '', autocomplete:'off'});
+  var note = h('textarea', {id:'d-note', class:'inp', maxlength:'400', placeholder:'How and when it was paid, or why it was declined'}); note.value = r.note || '';
+  var err = h('p', {class:'err', hidden:true, role:'alert'});
+  var save = h('button', {type:'button', class:'btn primary', text:'Save', onclick:function(){
+    var a = amountOrNull(amount.value), n = name.value.trim().replace(/\s+/g, ' ');
+    var msg = a == null ? 'Enter the amount like 42.50.' : !n ? 'Enter a name.' : '';
+    err.hidden = !msg; err.textContent = msg;
+    if (msg) return;
+    save.disabled = true;
+    call('api_desk', auth(), r.id, {status:status.value, amount:a, name:n, note:note.value.trim()}).then(function(res){
+      if (!res || !res.ok) throw new Error('refused');
+      toast('Saved.');
+      return refresh().then(function(){ openDetail(r.id); });
+    }).catch(fail).then(function(){ save.disabled = false; });
+  }});
+  var del = confirmBtn('Delete receipt', 'Tap again to delete', function(){
+    return call('api_delete', auth(), r.id).then(function(res){
+      if (!res || !res.ok) throw new Error('refused');
+      $('detail').close(); toast('Receipt deleted.'); return refresh();
+    });
+  });
+  return h('div', {class:'desk'},
+    h('h3', {text:'Tour desk'}),
+    h('div', {class:'grid2 even'},
+      f('d-status', 'Status', status),
+      f('d-amount', 'Amount', h('div', {class:'money'}, amount)),
+      f('d-name', 'Name', name, true),
+      f('d-note', 'Your note (only you see this)', note, true)),
+    err,
+    h('div', {class:'row'}, save, del));
+}
+
+/* ---------- render + data ---------- */
+var queued = false;
+function renderAll(){
+  if (queued) return; queued = true;
+  requestAnimationFrame(function(){ queued = false; renderShell(); renderTrack(); });
+}
+function refresh(){
+  if (!GAS){ S.conn = 'offline'; renderAll(); return Promise.resolve(); }
+  return call('api_state', auth()).then(function(st){
+    if (!st || !st.ok){ S.conn = 'locked'; renderAll(); return; }
+    var first = !S.loaded;
+    S.conn = 'live'; S.loaded = true; S.isTM = !!st.isTM;
+    if (typeof st.party === 'string' && st.party) $('party').textContent = st.party.slice(0, 80);
+    S.receipts = S.isTM && Array.isArray(st.receipts) ? st.receipts : [];
+    S.thumbs = (S.isTM && st.thumbs) || {}; S.links = (S.isTM && st.links) || null;
+    if (first && S.isTM && !S.touched) setTab('track');
+    renderAll();
+  }).catch(function(){
+    if (!S.loaded){ S.conn = 'down'; renderAll(); }
+  });
+}
+function start(){
+  setTab('send');
+  var saved = LS.get('rd.name');
+  if (saved) $('f-name').value = saved.slice(0, 80);
+  document.querySelectorAll('.tab').forEach(function(b){ b.addEventListener('click', function(){ setTab(b.dataset.tab, true); }); });
+  document.querySelectorAll('[data-copy]').forEach(function(b){ b.addEventListener('click', function(){ copyFrom(b.dataset.copy); }); });
+  $('rc-form').addEventListener('submit', submitForm);
+  $('rc-form').addEventListener('input', touch);
+  $('done-again').addEventListener('click', sendAnother);
+  $('f-files').addEventListener('change', function(e){ addFiles(e.target.files); e.target.value = ''; });
+  var drop = $('drop');
+  drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', function(){ drop.classList.remove('over'); });
+  drop.addEventListener('drop', function(e){ e.preventDefault(); drop.classList.remove('over'); addFiles(e.dataTransfer && e.dataTransfer.files); });
+  document.addEventListener('paste', function(e){
+    if (S.tab !== 'send' || !$('gate').hidden || $('rc-form').hidden || !e.clipboardData) return;
+    var files = Array.prototype.filter.call(e.clipboardData.files || [], function(f){ return /^image\//.test(f.type) || isPdf(f); });
+    if (files.length){ e.preventDefault(); addFiles(files); }
+  });
+  $('flt-person').addEventListener('change', function(e){ S.filter.person = e.target.value; renderTrack(); });
+  var dlg = $('detail');
+  dlg.addEventListener('click', function(e){ if (e.target === dlg) dlg.close(); });
+
+  $('lock-form').addEventListener('submit', function(e){
+    e.preventDefault();
+    var v = $('lock-code').value.replace(/[^A-Za-z0-9_-]/g, ''), err = $('lock-err'), btn = $('lock-btn');
+    if (!v) return;
+    S.k = v; btn.disabled = true; err.hidden = true;
+    refresh().then(function(){
+      btn.disabled = false;
+      if (S.conn === 'live') LS.set('rd.k', v);
+      else { err.hidden = false; err.textContent = 'That code did not work. Check the message Q sent and try again.'; }
+    });
+  });
+  renderFiles();
+  renderAll();
+  refresh();
+  // Only the tour desk has anything to keep fresh. A crew page never reads data back.
+  setInterval(function(){ if (document.visibilityState === 'visible' && S.conn === 'live' && S.isTM && !$('detail').open) refresh(); }, 60000);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible' && S.conn === 'live' && S.isTM && !$('detail').open) refresh(); });
+}
+start();
+})();
+</script>
+</body>
+</html>
