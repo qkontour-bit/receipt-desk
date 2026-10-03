@@ -145,6 +145,15 @@ a.link{color:var(--blue);font-weight:600;text-underline-offset:3px;overflow-wrap
 .tbtn[aria-pressed="true"] b{color:#fff}
 .filters{display:flex;flex-wrap:wrap;gap:8px}
 .filters .inp{max-width:240px}
+.selbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 14px;border-radius:10px;background:var(--surface);box-shadow:var(--shadow)}
+.selbar .help{flex:1 1 100%}
+.selgrow{flex:1 1 0}
+.pickall{display:inline-flex;align-items:center;gap:8px;font-weight:700;color:var(--navy);cursor:pointer}
+.selcount{font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.pick{width:20px;height:20px;margin:0;flex:none;accent-color:var(--navy);cursor:pointer}
+.btn.solid{background:var(--navy);color:#fff}
+.btn.solid:hover{background:var(--navy-2)}
+.pass.picked{outline:2px solid var(--navy);outline-offset:-2px}
 #track-body{display:flex;flex-direction:column;gap:26px}
 .group{display:flex;flex-direction:column;gap:12px}
 .ghead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding-bottom:8px;border-bottom:2px solid var(--navy)}
@@ -339,6 +348,14 @@ dialog::backdrop{background:var(--scrim)}
           <select id="flt-person" class="inp sm"></select>
         </div>
       </div>
+      <div class="selbar" id="selbar" hidden>
+        <label class="pickall"><input type="checkbox" class="pick" id="sel-all"><span>Select all shown</span></label>
+        <span class="selcount" id="sel-count" role="status">None selected</span>
+        <span class="selgrow"></span>
+        <button type="button" class="btn small" id="sel-clear">Clear</button>
+        <button type="button" class="btn small solid" id="sel-export">Export PDF</button>
+        <p class="help">Tick the receipts you want, then Export PDF for a list of name, status and amount to send to finance.</p>
+      </div>
       <div id="track-body"><p class="empty">Loading receipts</p></div>
     </section>
   </div>
@@ -383,7 +400,7 @@ var S = {
   k:BOOT.k || LS.get('rd.k') || '', tm:BOOT.tm || LS.get('rd.tm') || '',
   receipts:[], thumbs:{}, links:null, alerts:'', mailReady:true, loaded:false,
   tab:'send', touched:false,
-  filter:{status:'open', person:'all'},
+  filter:{status:'open', person:'all'}, sel:{}, shownIds:[],
   files:[], busy:false, token:'', fileCache:{}
 };
 function auth(){ return {k:S.k, tm:S.tm}; }
@@ -717,7 +734,14 @@ function card(r){
     e.target.disabled = true; mark([r.id], 'paid', 'Marked reimbursed.').catch(function(){ fail(); e.target.disabled = false; });
   }}));
   acts.push(h('button', {type:'button', class:'btn small', text:'Review', onclick:function(){ openDetail(r.id); }}));
-  var stub = h('div', {class:'stub'}, pill(st),
+  var box = h('input', {type:'checkbox', class:'pick', 'aria-label':'Select the ' + (money(amt) || '') + ' receipt from ' + (str(r.name, 80) || 'No name') + ' for export'});
+  box.checked = !!S.sel[r.id];
+  box.addEventListener('change', function(){
+    if (box.checked) S.sel[r.id] = true; else delete S.sel[r.id];
+    box.closest('.pass').classList.toggle('picked', box.checked);
+    renderSel();
+  });
+  var stub = h('div', {class:'stub'}, h('div', {class:'row'}, box, pill(st)),
     h('span', {class:'meta', text:'Sent ' + fmtWhen(r.createdAt)}),
     st === 'paid' && r.paidOn ? h('span', {class:'meta', text:'Reimbursed ' + fmtDate(r.paidOn)}) : null);
   var main = h('div', {class:'main'},
@@ -725,9 +749,10 @@ function card(r){
     r.note ? h('p', {class:'tmnote'}, h('span', {class:'lbl', text:'Your note'}), ' ', str(r.note, 400)) : null,
     h('div', {class:'row'}, tiles(r), acts));
   var fare = h('div', {class:'fare'}, h('div', {class:'fblock'}, h('span', {class:'lbl', text:'Amount'}), h('span', {class:'fval', text:money(amt) || 'Not given'})));
-  return h('article', {class:'pass', 'data-id':r.id}, stub, main, fare);
+  return h('article', {class:'pass' + (S.sel[r.id] ? ' picked' : ''), 'data-id':r.id}, stub, main, fare);
 }
-function renderTrack(){
+function renderTrack(){ S.shownIds = []; renderList(); renderSel(); }
+function renderList(){
   if (!S.isTM) return;
   var body = $('track-body');
   var names = {};
@@ -760,6 +785,7 @@ function renderTrack(){
     var st = statusOf(r);
     return S.filter.status === 'all' || (S.filter.status === 'open' ? isOpen(r) : st === S.filter.status);
   });
+  S.shownIds = shown.map(function(r){ return r.id; });
   if (!shown.length){
     var msg = !S.receipts.length ? 'No receipts yet. Send out the crew link and each receipt lands here with its photo, amount and description.'
       : S.filter.status === 'open' ? 'Nothing waiting to be paid' + (who ? who : '') + '.'
@@ -788,6 +814,172 @@ function renderTrack(){
     rs.forEach(function(r){ sec.append(card(r)); });
     body.append(sec);
   });
+}
+
+/* ---------- select and export (tour desk only) ---------- */
+function picked(){ return S.receipts.filter(function(r){ return S.sel[r.id]; }); }
+/* What finance is being asked to pay: declined receipts are listed but never added in. */
+function counted(list){ var t = 0; list.forEach(function(r){ if (statusOf(r) !== 'declined') t += numOrNull(r.amount) || 0; }); return t; }
+function renderSel(){
+  var bar = $('selbar');
+  bar.hidden = !(S.isTM && S.receipts.length);
+  if (bar.hidden) return;
+  var live = {}; S.receipts.forEach(function(r){ live[r.id] = true; });
+  Object.keys(S.sel).forEach(function(id){ if (!live[id]) delete S.sel[id]; }); // deleted elsewhere
+  var list = picked(), n = list.length;
+  var shownSel = S.shownIds.filter(function(id){ return S.sel[id]; }).length, hidden = n - shownSel;
+  var all = $('sel-all');
+  all.disabled = !S.shownIds.length;
+  all.checked = !!S.shownIds.length && shownSel === S.shownIds.length;
+  all.indeterminate = shownSel > 0 && shownSel < S.shownIds.length;
+  $('sel-count').textContent = n ? n + ' selected, ' + money(counted(list)) + (hidden ? ' (' + hidden + ' not in this view)' : '') : 'None selected';
+  $('sel-clear').disabled = !n; $('sel-export').disabled = !n;
+}
+function selectShown(on){
+  S.shownIds.forEach(function(id){ if (on) S.sel[id] = true; else delete S.sel[id]; });
+  renderTrack();
+}
+
+/* A small PDF writer: one table, standard Helvetica, no outside code. Widths are the font's own metrics. */
+var HELV = [278,278,355,556,556,889,667,191,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,278,278,584,584,584,556,1015,667,667,722,722,667,611,778,722,278,500,667,556,833,722,778,667,778,722,667,611,722,667,944,667,667,611,278,278,278,469,556,333,556,556,500,556,556,278,556,556,222,222,500,222,833,556,556,556,556,333,500,278,556,500,722,500,500,500,334,260,334,584,761,556,761,222,556,333,1000,556,556,333,1000,667,333,1000,761,611,761,761,222,222,333,333,350,556,1000,333,1000,500,333,944,761,500,667,278,333,556,556,556,556,260,556,333,737,370,556,584,333,737,333,400,584,333,333,333,556,537,278,333,333,365,556,834,834,834,611,667,667,667,667,667,667,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,500,556,556,556,556,278,278,278,278,556,556,556,556,556,556,556,584,611,556,556,556,556,500,556,500];
+var HELVB = [278,333,474,556,556,889,722,238,333,333,389,584,278,333,278,278,556,556,556,556,556,556,556,556,556,556,333,333,584,584,584,611,975,722,722,722,722,667,611,778,722,278,556,722,611,833,722,778,667,778,722,667,611,722,667,944,667,667,611,333,278,333,584,556,333,556,611,556,611,556,333,611,611,278,278,556,278,889,611,611,611,611,389,556,333,611,556,778,556,556,500,389,280,389,584,761,556,761,278,556,500,1000,556,556,333,1000,667,333,1000,761,611,761,761,278,278,500,500,350,556,1000,333,1000,556,333,944,761,500,667,278,333,556,556,556,556,280,556,333,737,370,556,584,333,737,333,400,584,333,333,333,611,556,278,333,333,365,556,834,834,834,611,722,722,722,722,722,722,1000,722,667,667,667,667,278,278,278,278,722,722,778,778,778,778,778,584,778,722,722,722,722,667,667,611,556,556,556,556,556,556,889,556,556,556,556,556,278,278,278,278,611,611,611,611,611,611,611,584,611,611,611,611,611,556,611,556];
+var CP1252 = {8364:128,8218:130,402:131,8222:132,8230:133,8224:134,8225:135,710:136,8240:137,352:138,8249:139,338:140,381:142,8216:145,8217:146,8220:147,8221:148,8226:149,8211:150,8212:151,732:152,8482:153,353:154,8250:155,339:156,382:158,376:159};
+function pdfBytes(s){
+  s = String(s == null ? '' : s); if (s.normalize) s = s.normalize('NFC');
+  var out = '', i, c;
+  for (i = 0; i < s.length; i++){
+    c = s.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF){ i++; out += '?'; }
+    else if ((c >= 32 && c <= 126) || (c >= 160 && c <= 255)) out += String.fromCharCode(c);
+    else if (CP1252[c]) out += String.fromCharCode(CP1252[c]);
+    else if (c === 9 || c === 10 || c === 13) out += ' ';
+    else out += '?';
+  }
+  return out;
+}
+function pdfWidth(b, bold, size){
+  var t = bold ? HELVB : HELV, w = 0, i, c;
+  for (i = 0; i < b.length; i++){ c = b.charCodeAt(i); w += (c >= 32 && c <= 255 && t[c - 32]) || 556; }
+  return w * size / 1000;
+}
+function pdfFit(s, bold, size, max){
+  var b = pdfBytes(s);
+  if (!max || pdfWidth(b, bold, size) <= max) return b;
+  while (b.length > 1 && pdfWidth(b + '...', bold, size) > max) b = b.slice(0, -1);
+  return b.replace(/\s+$/, '') + '...';
+}
+function pdfEsc(b){ return b.replace(/([\\()])/g, '\\$1'); }
+function buildPdf(list, meta){
+  var W = 612, H = 792, M = 54, R = W - M, FLOOR = M + 34, ROW = 21;
+  var NAVY = '0.043 0.165 0.290', INK = '0.075 0.137 0.227', GRAY = '0.400 0.459 0.541', LINE = '0.863 0.886 0.918', RED = '0.773 0.071 0.180';
+  var TONE = {submitted:'0.541 0.325 0.000', approved:'0.106 0.373 0.749', paid:'0.090 0.412 0.235', declined:'0.659 0.137 0.106'};
+  var pages = [], ops, y;
+  function text(x, yy, s, size, bold, color, right, max){
+    var b = pdfFit(s, bold, size, max);
+    if (right) x -= pdfWidth(b, bold, size);
+    ops.push('BT /' + (bold ? 'F2' : 'F1') + ' ' + size + ' Tf ' + (color || INK) + ' rg ' + x.toFixed(2) + ' ' + yy.toFixed(2) + ' Td (' + pdfEsc(b) + ') Tj ET');
+  }
+  function rule(yy, color, w){ ops.push((color || LINE) + ' RG ' + (w || 0.75) + ' w ' + M + ' ' + yy.toFixed(2) + ' m ' + R + ' ' + yy.toFixed(2) + ' l S'); }
+  function page(){ ops = []; pages.push(ops); y = H - M; }
+  function head(cols){
+    cols.forEach(function(c){ text(c[1], y - 9, c[0], 8, true, GRAY, c[2]); });
+    y -= 15; rule(y, INK, 0.75);
+  }
+  function room(h, cols){ if (y - h >= FLOOR) return; page(); if (cols) head(cols); }
+
+  var rows = list.slice().sort(function(a, b){
+    return pkey(a.name).localeCompare(pkey(b.name)) || String(a.createdAt).localeCompare(String(b.createdAt));
+  });
+  var total = counted(rows), declined = rows.filter(function(r){ return statusOf(r) === 'declined'; }).length;
+  var people = {}, order = [];
+  rows.forEach(function(r){
+    if (statusOf(r) === 'declined') return;
+    var k = pkey(r.name);
+    if (!people[k]){ people[k] = {name:str(r.name, 80) || 'No name', n:0, sum:0}; order.push(k); }
+    people[k].n++; people[k].sum += numOrNull(r.amount) || 0;
+  });
+  var names = {}; rows.forEach(function(r){ names[pkey(r.name)] = true; });
+
+  page();
+  text(M, y - 8, 'RECEIPT DESK', 8, true, RED);
+  text(M, y - 32, 'Reimbursement report', 20, true, NAVY);
+  text(M, y - 48, meta.party, 10, false, GRAY, false, 300);
+  text(R, y - 48, 'Prepared ' + meta.prepared, 10, false, GRAY, true);
+  y -= 60; rule(y, NAVY, 1.5);
+  text(M, y - 18, 'RECEIPTS', 8, true, GRAY); text(M, y - 36, String(rows.length), 15, true, NAVY);
+  text(M + 110, y - 18, 'PEOPLE', 8, true, GRAY); text(M + 110, y - 36, String(Object.keys(names).length), 15, true, NAVY);
+  text(R, y - 18, 'TOTAL', 8, true, GRAY, true); text(R, y - 36, money(total), 15, true, NAVY, true);
+  y -= 58;
+
+  var COLS = [['NAME', M], ['STATUS', 384], ['AMOUNT', R, true]];
+  head(COLS);
+  rows.forEach(function(r){
+    room(ROW, COLS);
+    var st = statusOf(r), a = numOrNull(r.amount);
+    text(M, y - 14, str(r.name, 80) || 'No name', 11, false, INK, false, 384 - M - 14);
+    text(384, y - 14, STATUS[st].label, 10, true, TONE[st]);
+    text(R, y - 14, a == null ? 'Not given' : money(a), 11, false, st === 'declined' ? GRAY : INK, true);
+    y -= ROW; rule(y);
+  });
+  room(ROW + (declined ? 16 : 0));
+  rule(y, NAVY, 1);
+  text(M, y - 15, 'Total', 11, true, NAVY); text(R, y - 15, money(total), 11, true, NAVY, true);
+  y -= ROW;
+  if (declined){ text(M, y - 8, 'Declined receipts are listed but are not counted in the total.', 9, false, GRAY); y -= 16; }
+
+  if (order.some(function(k){ return people[k].n > 1; })){
+    var PCOLS = [['NAME', M], ['RECEIPTS', 384], ['AMOUNT', R, true]];
+    room(30 + 15 + ROW * 2);
+    y -= 22; text(M, y - 10, 'Total by person', 13, true, NAVY); y -= 20;
+    head(PCOLS);
+    order.forEach(function(k){
+      room(ROW, PCOLS);
+      text(M, y - 14, people[k].name, 11, false, INK, false, 384 - M - 14);
+      text(384, y - 14, String(people[k].n), 11, false, INK);
+      text(R, y - 14, money(people[k].sum), 11, true, INK, true);
+      y -= ROW; rule(y);
+    });
+  }
+  pages.forEach(function(p, i){
+    ops = p;
+    text(M, 36, 'Receipt Desk  |  ' + meta.party, 8, false, GRAY, false, 380);
+    text(R, 36, 'Page ' + (i + 1) + ' of ' + pages.length, 8, false, GRAY, true);
+  });
+
+  var objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Count ' + pages.length + ' /Kids [' + pages.map(function(p, i){ return (6 + 2 * i) + ' 0 R'; }).join(' ') + '] >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Title (' + pdfEsc(pdfBytes('Reimbursement report, ' + meta.prepared)) + ') /Producer (Receipt Desk) >>'
+  ];
+  pages.forEach(function(p, i){
+    var body = p.join('\n');
+    objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (7 + 2 * i) + ' 0 R >>');
+    objs.push('<< /Length ' + body.length + ' >>\nstream\n' + body + '\nendstream');
+  });
+  var out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n', at = [];
+  objs.forEach(function(o, i){ at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  var xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(function(n){ return ('0000000000' + n).slice(-10) + ' 00000 n \n'; }).join('');
+  out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 5 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  var bytes = new Uint8Array(out.length), j;
+  for (j = 0; j < out.length; j++) bytes[j] = out.charCodeAt(j) & 255;
+  return bytes;
+}
+function exportPdf(){
+  var list = picked();
+  if (!list.length){ toast('Tick at least one receipt first.'); return; }
+  var now = new Date(), p2 = function(n){ return String(n).padStart(2, '0'); };
+  var bytes = buildPdf(list, {
+    party: ($('party').textContent || '').trim() || 'Receipt Desk',
+    prepared: now.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})
+  });
+  var url = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
+  var a = h('a', {href:url, download:'Reimbursements ' + now.getFullYear() + '-' + p2(now.getMonth() + 1) + '-' + p2(now.getDate()) + '.pdf', target:'_self'});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  toast('PDF saved with ' + plural(list.length, 'receipt', 'receipts') + '.');
 }
 
 /* ---------- detail / review ---------- */
@@ -934,6 +1126,9 @@ function start(){
     if (files.length){ e.preventDefault(); addFiles(files); }
   });
   $('alert-form').addEventListener('submit', saveAlerts);
+  $('sel-all').addEventListener('change', function(e){ selectShown(e.target.checked); });
+  $('sel-clear').addEventListener('click', function(){ S.sel = {}; renderTrack(); });
+  $('sel-export').addEventListener('click', exportPdf);
   $('flt-person').addEventListener('change', function(e){ S.filter.person = e.target.value; renderTrack(); });
   var dlg = $('detail');
   dlg.addEventListener('click', function(e){ if (e.target === dlg) dlg.close(); });
